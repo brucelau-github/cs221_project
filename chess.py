@@ -2,11 +2,12 @@ import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import gym
+from time import sleep
 
 # Colors
 COLOR_AC_BUTTON = (200, 200, 0)
 COLOR_BLACK = (0, 0, 0)
-COLOR_BOARD = (255, 180, 0)
+COLOR_BOARD = (212, 87, 36)
 COLOR_BUTTON = (255, 255, 0)
 COLOR_GRAY = (100, 100, 100)
 COLOR_GREEN = (0, 200, 0)
@@ -24,6 +25,8 @@ class Gomoku(gym.Env):
         self.stone = {-1:[], 1:[]}
         self.score = {-1:0, 1:0}
         self.chess_board = [[0]*n for _ in range(n)]
+        self.screen = None
+        self.board_line_gap = 45
 
     def reset(self):
         """ reset the chess status """
@@ -38,8 +41,8 @@ class Gomoku(gym.Env):
         player = self.next_player
         self.chess_board[m][n] = player
         self.stone[player].append(action)
-        is_win = self.is_win(self.stone[player])
-        if is_win: 
+        won = self.is_win(self.stone[player])
+        if won: 
             reward = 5000
             done = True
         self.next_player *= -1
@@ -47,7 +50,7 @@ class Gomoku(gym.Env):
         return (observation, reward, done, info)
 
     def is_win(self, stone):
-        if len(stone) <= 5:
+        if len(stone) < 5:
             return False
 
         stone_sort = sorted(stone)
@@ -63,7 +66,8 @@ class Gomoku(gym.Env):
                    or stone_set.issuperset(set(col))
                    or stone_set.issuperset(set(diag))
                    or stone_set.issuperset(set(adiag)))
-            return win
+            if win: return True
+        return False
 
     def print_info(self):
         print(self.stone)
@@ -72,24 +76,58 @@ class Gomoku(gym.Env):
 
     def render(self):
         """ render a chess board """
-        self.w_h = 675
-        self.screen = pygame.display.set_mode((900, self.w_h + 45))
-        pygame.display.set_caption("GOMOKU")
-        self.screen.fill(COLOR_BOARD)
         return None
 
     def draw_board(self):
+        pygame.init()
+        n, gap = self.board_size, self.board_line_gap
+        self.screen = pygame.display.set_mode(((n+1)*gap, (n+1)*gap))
+        self.screen.fill(COLOR_BOARD)
+        h_label, v_label = ord('A'), 1
+        h_line = pygame.Rect((gap, gap), ((n-1)*gap, 2)).move(0, -1)
+        v_line = pygame.Rect((gap, gap), (2, (n-1)*gap)).move(-1, 0)
+        for i in range(self.board_size):
+            self.text_draw(chr(h_label+i), gap*(1 + i), gap-10, COLOR_BLACK, 10)
+            self.text_draw(str(v_label+i), gap-10, gap*(1 + i), COLOR_BLACK, 10)
+            pygame.draw.rect(self.screen, COLOR_BLACK, v_line.move(gap*i, 0))
+            pygame.draw.rect(self.screen, COLOR_BLACK, h_line.move(0, gap*i))
+        circle = pygame.draw.circle(self.screen, COLOR_BLACK, [gap * 8, gap * 8], 8)
+        pygame.display.update()
 
-        h_line = pygame.draw.line(self.screen, COLOR_BLACK, [45, 45], [45, 675], 2)
-        v_line = pygame.draw.line(self.screen, COLOR_BLACK, [45, 45], [675, 45], 2)
-        # Gomoku board.
-        for i in range(1, self.board_size+1):
-            h_line.copy().move(45, 0)
-            pygame.draw.line(self.screen, COLOR_BLACK,
-                             [45 * i, 45], [45 * i, self.w_h], 2)
-            pygame.draw.line(self.screen, COLOR_BLACK,
-                             [45, 45 * i], [self.w_h, 45 * i], 2)
-        pygame.draw.circle(self.screen, COLOR_BLACK, [45 * 8, 45 * 8], 8)
+    def draw_stone(self, m, n, player):
+        color = {-1: COLOR_BLACK, 1:COLOR_WHITE}
+        gap = self.board_line_gap
+        dirty = pygame.draw.circle(self.screen, color[player], [(m+1)*gap, (n+1)*gap], gap//2)
+        pygame.display.update(dirty)
+
+    def conv_mouse_pos(self, x, y):
+        """ return a row, colum postion tuple """
+        gap, N = self.board_line_gap, self.board_size
+        m, n = x // gap - 1, y // gap - 1
+        if x % gap > gap // 2:
+            m += 1
+        if y % gap > gap // 2:
+            n += 1
+        if 23 < x < N*gap and 23 < y < N*gap:
+            return (m, n)
+        return (-1, -1)
+
+    def interactive_run(self):
+        self.draw_board()
+        while True:
+            event = pygame.event.wait()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+                m, n = self.conv_mouse_pos(x, y)
+                self.draw_stone(m, n, self.next_player)
+                s = self.step((m,n))
+                self.print_info()
+                print(s)
+                if s[2]: break
+            if event.type == pygame.KEYDOWN:
+                if pygame.key.get_pressed()[pygame.K_q]:
+                    break
+        pygame.quit()
 
     def draw_score(self, player1_score, player2_score):
         self.player1_score, self.player2_score = player1_score, player2_score
@@ -163,19 +201,6 @@ class Gomoku(gym.Env):
 
     def play_get_pos(self):
         self.x_stone, self.y_stone = pygame.mouse.get_pos()
-
-        return self.x_stone, self.y_stone
-
-    def play_draw_stone_pos(self):
-        if self.x_stone % 45 > 23:
-            self.x_stone = (self.x_stone - self.x_stone % 45) + 45
-        else:
-            self.x_stone -= self.x_stone % 45
-
-        if self.y_stone % 45 > 23:
-            self.y_stone = (self.y_stone - self.y_stone % 45) + 45
-        else:
-            self.y_stone -= self.y_stone % 45
 
         return self.x_stone, self.y_stone
 
@@ -257,17 +282,14 @@ class Gomoku(gym.Env):
 
         return self.player_score, self.play_order
 
-
-
-if __name__ == "__main__":
-    pygame.init()
-    game = Gomoku()
+def test_is_win(game):
     tests = [
         [(0, 0)],
         [(0, 0),(1, 1),(2, 2),(3, 3),(4, 4),(5, 5)],
         [(0, 0),(1, 0),(2, 0),(3, 0),(4, 0),(5, 0)],
         [(0, 0),(0, 1),(0, 2),(0, 3),(0, 4),(0, 5)],
-        [(5, 5),(6, 4),(7, 3),(8, 2),(9, 1),(10, 0)]
+        [(5, 5),(6, 4),(7, 3),(8, 2),(9, 1),(10, 0)],
+        [(11, 7), (11, 6), (11, 5), (11, 4), (11, 3), (0, 0)]
     ]
     for i in tests:
         print(game.is_win(i))
@@ -278,4 +300,28 @@ if __name__ == "__main__":
         print(f"reward:{s[1]}, done:{s[2]}")
         game.print_info()
         s = game.step(p2)
-        game.print_info()
+        # game.print_info()
+
+def test_render_board(game):
+    game.draw_board()
+    game.draw_stone(10, 10, 1)
+    sleep(20)
+    pygame.event.set_allowed(pygame.MOUSEBUTTONDOWN)
+    event = pygame.event.wait()
+
+def test_conv_pos(game):
+    tests = {
+        (0, 0) : [(45, 45), (46, 46), (67, 67)],
+        (-1, -1) : [(1, 1),(16*45, 16*45)],
+        (1, 1) : [(80, 80),(90, 90), (90+22, 90+22)]
+    }
+    for k, v in tests.items():
+        for t in v:
+            got = game.conv_mouse_pos(t[0], t[1])
+            assert got == k, f"convert {t} expect {k}, got {got}"
+def test_run(game):
+    game.interactive_run()
+
+if __name__ == "__main__":
+    game = Gomoku()
+    test_run(game)

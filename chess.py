@@ -37,6 +37,9 @@ class Gomoku(gym.Env):
     def step(self, action):
         """ place a piece on the board """
         m, n = action
+        if self.chess_board[m][n] != 0:
+            h_label, v_label = chr(ord('A') + m), str(n+1)
+            raise ValueError(f"position {h_label}x{v_label} is occupied")
         observation, reward, done, info = self.chess_board, -1, False, {}
         player = self.next_player
         self.chess_board[m][n] = player
@@ -95,6 +98,8 @@ class Gomoku(gym.Env):
         pygame.display.update()
 
     def draw_stone(self, m, n, player):
+        if m == -1:
+            return
         color = {-1: COLOR_BLACK, 1:COLOR_WHITE}
         gap = self.board_line_gap
         dirty = pygame.draw.circle(self.screen, color[player], [(m+1)*gap, (n+1)*gap], gap//2)
@@ -119,11 +124,10 @@ class Gomoku(gym.Env):
             if event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = pygame.mouse.get_pos()
                 m, n = self.conv_mouse_pos(x, y)
-                self.draw_stone(m, n, self.next_player)
-                s = self.step((m,n))
-                self.print_info()
-                print(s)
-                if s[2]: break
+                if self.chess_board[m][n] == 0:
+                    self.draw_stone(m, n, self.next_player)
+                    s = self.step((m,n))
+                    if s[2]: break
             if event.type == pygame.KEYDOWN:
                 if pygame.key.get_pressed()[pygame.K_q]:
                     break

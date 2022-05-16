@@ -3,6 +3,8 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import gym
 from time import sleep
+import matplotlib.pyplot as plt
+from PIL import Image
 
 # Colors
 COLOR_AC_BUTTON = (200, 200, 0)
@@ -79,6 +81,9 @@ class Gomoku(gym.Env):
 
     def render(self):
         """ render a chess board """
+        plt.figure()
+        plt.imshow(pygame.surfarray.array3d(self.screen))
+        plt.show()
         return None
 
     def draw_board(self):
@@ -128,6 +133,7 @@ class Gomoku(gym.Env):
                     self.draw_stone(m, n, self.next_player)
                     s = self.step((m,n))
                     if s[2]: break
+                self.render()
             if event.type == pygame.KEYDOWN and pygame.key.get_pressed()[pygame.K_q]:
                 break
         msg = f"score: white {self.score[1]}, black {self.score[-1]}"

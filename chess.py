@@ -1,4 +1,5 @@
 import os
+import random
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import gym
@@ -17,7 +18,7 @@ COLOR_RED = (255, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 
 class Gomoku(gym.Env):
-    def __init__(self, n=15):
+    def __init__(self, n=15, gui=False):
         super().__init__()
         self.players = [1, -1]
         self.next_player = 1
@@ -27,8 +28,10 @@ class Gomoku(gym.Env):
         self.stone = {-1:[], 1:[]}
         self.score = {-1:0, 1:0}
         self.chess_board = [[0]*n for _ in range(n)]
+        self.winner = None
         self.screen = None
         self.board_line_gap = 45
+        self.gui = gui
 
     def reset(self):
         """ reset the chess status """
@@ -43,12 +46,19 @@ class Gomoku(gym.Env):
             h_label, v_label = chr(ord('A') + m), str(n+1)
             raise ValueError(f"position {h_label}x{v_label} is occupied")
         observation, reward, done, info = self.chess_board, -1, False, {}
+
         player = self.next_player
+        if self.winner is not None and player != self.winner:
+            return (observation, -5000, True, info)
+
         self.chess_board[m][n] = player
         self.stone[player].append(action)
+        if self.gui:
+            self.draw_stone(m, n, player)
         won = self.is_win(self.stone[player])
         if won: 
             reward = 5000
+            self.winner = player
             done = True
         self.next_player *= -1
         self.score[player] += reward
@@ -81,13 +91,11 @@ class Gomoku(gym.Env):
 
     def render(self):
         """ render a chess board """
-        plt.figure()
-        plt.imshow(pygame.surfarray.array3d(self.screen))
-        plt.show()
-        return None
+        return pygame.surfarray.array3d(self.screen)
 
     def draw_board(self):
         pygame.init()
+        self.gui = True
         n, gap = self.board_size, self.board_line_gap
         self.screen = pygame.display.set_mode(((n+1)*gap, (n+1)*gap))
         self.screen.fill(COLOR_BOARD)
@@ -101,6 +109,11 @@ class Gomoku(gym.Env):
             pygame.draw.rect(self.screen, COLOR_BLACK, h_line.move(0, gap*i))
         circle = pygame.draw.circle(self.screen, COLOR_BLACK, [gap * 8, gap * 8], 8)
         pygame.display.update()
+
+    def get_legal_actions(self):
+        n = self.board_size
+        all_actions = [(i, j) for i in range(n) for j in range(n) if self.chess_board[i][j] == 0]
+        return all_actions
 
     def draw_stone(self, m, n, player):
         if m == -1:
@@ -122,25 +135,28 @@ class Gomoku(gym.Env):
             return (m, n)
         return (-1, -1)
 
-    def interactive_run(self):
-        self.draw_board()
-        while True:
+    def human_step(self):
+        while self.winner is None:
             event = pygame.event.wait()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = pygame.mouse.get_pos()
                 m, n = self.conv_mouse_pos(x, y)
                 if self.chess_board[m][n] == 0:
-                    self.draw_stone(m, n, self.next_player)
-                    s = self.step((m,n))
-                    if s[2]: break
-                self.render()
-            if event.type == pygame.KEYDOWN and pygame.key.get_pressed()[pygame.K_q]:
-                break
-        msg = f"score: white {self.score[1]}, black {self.score[-1]}"
-        text = self.text_draw(msg, 8*45, 8*45, COLOR_GREEN, 18)
-        pygame.display.update(text)
-        sleep(3)
-        pygame.quit()
+                    return (m, n)
+            if event.type == pygame.KEYDOWN:
+                key = pygame.key.get_pressed()
+                if key[pygame.K_q]:
+                    msg = f"score: white {self.score[1]}, black {self.score[-1]}"
+                    text = self.text_draw(msg, 8*45, 8*45, COLOR_GREEN, 18)
+                    pygame.display.update(text)
+                    sleep(3)
+                    pygame.quit()
+                    self.winner = 0
+                    break
+                if key[pygame.K_x]:
+                    plt.figure()
+                    plt.imshow(pygame.surfarray.array3d(self.screen))
+                    plt.show()
 
     def text_draw(self, text, x_pos, y_pos, font_color, font_size):
         font = pygame.font.Font(pygame.font.get_default_font(), font_size)
@@ -149,22 +165,6 @@ class Gomoku(gym.Env):
         text_rect.center = (x_pos, y_pos)
         self.screen.blit(text_img, text_rect)
         return text_rect
-
-    def play_draw_stone(self, stone, play_order, color_name, stone_color, x_stone, y_stone):
-        self.stone, self.play_order, self.color_name = stone, play_order, color_name
-        self.stone_color, self.x_stone, self.y_stone = stone_color, x_stone, y_stone
-
-        if (self.x_stone, self.y_stone) in self.stone["white"]:
-            pass
-        elif (self.x_stone, self.y_stone) in self.stone["black"]:
-            pass
-        else:
-            pygame.draw.circle(self.screen, self.stone_color,
-                               (self.x_stone, self.y_stone), 45//2)
-            self.stone[self.color_name].append((self.x_stone, self.y_stone))
-            if self.play_order: self.play_order = False
-            else: self.play_order = True
-        return self.stone, self.play_order
 
 def test_is_win(game):
     tests = [
@@ -206,6 +206,15 @@ def test_conv_pos(game):
 def test_run(game):
     game.interactive_run()
 
+def random_agent(game):
+    game.draw_board()
+    while game.winner is None:
+        action = game.human_step()
+        game.step(action)
+        actions = game.get_legal_actions()
+        action = random.choice(actions)
+        game.step(action)
+
 if __name__ == "__main__":
     game = Gomoku()
-    test_run(game)
+    random_agent(game)

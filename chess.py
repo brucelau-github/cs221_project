@@ -210,11 +210,25 @@ def random_agent(game):
     game.draw_board()
     while game.winner is None:
         action = game.human_step()
+        if action is None:
+            break
         game.step(action)
         actions = game.get_legal_actions()
         action = random.choice(actions)
         game.step(action)
 
+def two_random_agent(game):
+    game.draw_board()
+    while game.winner is None:
+        actions = game.get_legal_actions()
+        action = random.choice(actions)
+        game.step(action)
+        sleep(2)
+        actions = game.get_legal_actions()
+        action = random.choice(actions)
+        game.step(action)
+        sleep(2)
+
 if __name__ == "__main__":
     game = Gomoku()
-    random_agent(game)
+    two_random_agent(game)

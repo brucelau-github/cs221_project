@@ -115,6 +115,24 @@ class Gomoku(gym.Env):
         all_actions = [(i, j) for i in range(n) for j in range(n) if self.chess_board[i][j] == 0]
         return all_actions
 
+    def get_adjacent_legal_actions(self):
+        def surround(board, x, y) -> list():
+            neighbours = []
+            for r in range(x-1 if x > 0 else x, x+2 if x < 15 - 1 else x):
+                for c in range(y-1 if y > 0 else y, y+2 if y < 15 - 1 else y):
+                    if board[r][c] == 0:
+                        neighbours.append((r,c))
+            return neighbours
+        all_adjacent_actions = []
+        for a in range(self.board_size):
+            for b in range(self.board_size):
+                if self.chess_board[a][b] != 0:
+                    adjacent_actions = surround(self.chess_board, a, b)
+                    all_adjacent_actions.extend(a for a in adjacent_actions if a not in all_adjacent_actions)
+        if not all_adjacent_actions:
+            return game.get_legal_actions()
+        return all_adjacent_actions
+
     def draw_stone(self, m, n, player):
         if m == -1:
             return
@@ -206,6 +224,12 @@ def test_conv_pos(game):
 def test_run(game):
     game.interactive_run()
 
+def two_player(game):
+    game.draw_board()
+    while game.winner is None:
+        action = game.human_step()
+        game.step(action)
+
 def random_agent(game):
     game.draw_board()
     while game.winner is None:
@@ -215,6 +239,17 @@ def random_agent(game):
         action = random.choice(actions)
         game.step(action)
 
+def random_adjacent_agent(game):
+    game.draw_board()
+    while game.winner is None:
+        action = game.human_step()
+        game.step(action)
+        adjacent_legal_actions = game.get_adjacent_legal_actions()
+        action = random.choice(adjacent_legal_actions)
+        game.step(action)
+        
 if __name__ == "__main__":
     game = Gomoku()
-    random_agent(game)
+    # random_agent(game)
+    random_adjacent_agent(game)
+    # two_player(game)

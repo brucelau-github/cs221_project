@@ -118,19 +118,17 @@ class Gomoku(gym.Env):
     def get_adjacent_legal_actions(self):
         def surround(board, x, y) -> list():
             neighbours = []
-            for r in range(y-1 if y > 0 else y, y+2 if y < 15 - 1 else y):
-                for c in range(x-1 if x > 0 else x, x+2 if x < 15 - 1 else x):
-                    print("checking position: (", r, ",", c,") = ", board[r][c])
+            for r in range(x-1 if x > 0 else x, x+2 if x < 15 - 1 else x):
+                for c in range(y-1 if y > 0 else y, y+2 if y < 15 - 1 else y):
                     if board[r][c] == 0:
                         neighbours.append((r,c))
             return neighbours
         all_adjacent_actions = []
         for a in range(self.board_size):
             for b in range(self.board_size):
-                if self.chess_board[a][b] == 1:
+                if self.chess_board[a][b] != 0:
                     adjacent_actions = surround(self.chess_board, a, b)
-                    all_adjacent_actions.extend(x for x in adjacent_actions if x not in all_adjacent_actions)
-                    print("AdjacentActions: ", all_adjacent_actions)
+                    all_adjacent_actions.extend(a for a in adjacent_actions if a not in all_adjacent_actions)
         if not all_adjacent_actions:
             return game.get_legal_actions()
         return all_adjacent_actions
@@ -246,10 +244,8 @@ def random_adjacent_agent(game):
     while game.winner is None:
         action = game.human_step()
         game.step(action)
-        print("====Opponent====")
         adjacent_legal_actions = game.get_adjacent_legal_actions()
         action = random.choice(adjacent_legal_actions)
-        print("Opponent Action: ", action)
         game.step(action)
         
 if __name__ == "__main__":

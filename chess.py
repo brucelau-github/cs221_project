@@ -91,7 +91,7 @@ class Gomoku(gym.Env):
 
     def render(self):
         """ render a chess board """
-        return pygame.surfarray.array3d(self.screen)
+        return pygame.surfarray.array3d(self.screen).transpose(1, 0, 2)
 
     def draw_board(self):
         pygame.init()
@@ -157,7 +157,7 @@ class Gomoku(gym.Env):
                     break
                 if key[pygame.K_x]:
                     plt.figure()
-                    plt.imshow(pygame.surfarray.array3d(self.screen))
+                    plt.imshow(self.render())
                     plt.show()
 
     def text_draw(self, text, x_pos, y_pos, font_color, font_size):

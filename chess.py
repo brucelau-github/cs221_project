@@ -40,7 +40,7 @@ class Gomoku(gym.Env):
         """ reset the chess status """
         self.stone = {-1:[], 1:[]}
         self.score = {-1:0, 1:0}
-        self.chess_board = [[0]*n for _ in range(n)]
+        self.chess_board = [[0]*self.board_size for _ in range(self.board_size)]
 
     def step(self, action):
         """ place a piece on the board """
@@ -133,7 +133,7 @@ class Gomoku(gym.Env):
                     adjacent_actions = surround(self.chess_board, a, b)
                     all_adjacent_actions.extend(a for a in adjacent_actions if a not in all_adjacent_actions)
         if not all_adjacent_actions:
-            return game.get_legal_actions()
+            return self.get_legal_actions()
         return all_adjacent_actions
 
     def draw_stone(self, m, n, player):
@@ -412,9 +412,7 @@ def minimax_agent(game):
         
 if __name__ == "__main__":
     g = Gomoku()
-    # random_agent(game)
-    # random_adjacent_agent(game)
+    # random_agent(g)
+    # random_adjacent_agent(g)
     minimax_agent(g)
-    # two_player(game)
-
-
+    # two_player(g)

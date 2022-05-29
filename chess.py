@@ -6,6 +6,7 @@ import gym
 from time import sleep
 import matplotlib.pyplot as plt
 from PIL import Image
+import copy
 
 # Colors
 COLOR_AC_BUTTON = (200, 200, 0)
@@ -17,8 +18,10 @@ COLOR_GREEN = (0, 200, 0)
 COLOR_RED = (255, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 
+BOARD_SIZE = 5
+
 class Gomoku(gym.Env):
-    def __init__(self, n=15, gui=False):
+    def __init__(self, n=BOARD_SIZE, gui=False):
         super().__init__()
         self.players = [1, -1]
         self.next_player = 1
@@ -107,7 +110,7 @@ class Gomoku(gym.Env):
             self.text_draw(str(v_label+i), gap-10, gap*(1 + i), COLOR_BLACK, 10)
             pygame.draw.rect(self.screen, COLOR_BLACK, v_line.move(gap*i, 0))
             pygame.draw.rect(self.screen, COLOR_BLACK, h_line.move(0, gap*i))
-        circle = pygame.draw.circle(self.screen, COLOR_BLACK, [gap * 8, gap * 8], 8)
+        circle = pygame.draw.circle(self.screen, COLOR_BLACK, [gap * (BOARD_SIZE//2 + 1), gap * (BOARD_SIZE//2 + 1)], 8)
         pygame.display.update()
 
     def get_legal_actions(self):
@@ -118,8 +121,8 @@ class Gomoku(gym.Env):
     def get_adjacent_legal_actions(self):
         def surround(board, x, y) -> list():
             neighbours = []
-            for r in range(x-1 if x > 0 else x, x+2 if x < 15 - 1 else x):
-                for c in range(y-1 if y > 0 else y, y+2 if y < 15 - 1 else y):
+            for r in range(x-1 if x > 0 else x, x+2 if x < self.board_size - 1 else x):
+                for c in range(y-1 if y > 0 else y, y+2 if y < self.board_size - 1 else y):
                     if board[r][c] == 0:
                         neighbours.append((r,c))
             return neighbours
@@ -184,6 +187,156 @@ class Gomoku(gym.Env):
         self.screen.blit(text_img, text_rect)
         return text_rect
 
+class GameState():
+    def __init__(self, cb: list(list()), p_idx: int):
+        self.chess_board = copy.deepcopy(cb)
+        self.player_index = p_idx
+        self.board_size = BOARD_SIZE
+    
+    def get_score(self):
+        score = {-1:0, 1:0}
+        for r in range(len(self.chess_board)):
+            for c in range(len(self.chess_board)):
+                if self.chess_board[r][c] == -1:
+                    score[-1] -= 1
+                elif self.chess_board[r][c] == 1:
+                    score[1] -= 1
+        if self.is_win():
+            score[self.player_index] == 5000
+        return score
+
+    def generate_successor(self, player_index: int, action: tuple()) -> list(list()):
+        temp = GameState(copy.deepcopy(self.chess_board), self.player_index)
+        temp.chess_board[action[0]][action[1]]= player_index
+        return temp
+
+    def is_win(self):
+        stone = []
+        for r in range(len(self.chess_board)):
+            for c in range(len(self.chess_board)):
+                if self.chess_board[r][c] == self.player_index:
+                    stone.append((r, c))
+
+        if len(stone) < 5:
+            return False
+
+        stone_sort = sorted(stone)
+        for x, y in stone_sort:
+            row, col, diag, adiag = [], [], [], []
+            for i in range(1, 5):
+                row.append((x, y+i))
+                col.append((x+i, y))
+                diag.append((x+i, y+i))
+                adiag.append((x+i, y-i))
+            stone_set = set(stone_sort)
+            win = (stone_set.issuperset(set(row))
+                   or stone_set.issuperset(set(col))
+                   or stone_set.issuperset(set(diag))
+                   or stone_set.issuperset(set(adiag)))
+            if win:
+                return True
+        return False
+
+    def get_legal_actions(self):
+        n = self.board_size
+        all_actions = [(i, j) for i in range(n) for j in range(n) if self.chess_board[i][j] == 0]
+        return all_actions
+
+class MiniMaxAgent():
+    def __init__(self, agent_index = -1, opponent_index = 1):
+        self.depth = 2
+        self.agent_index = agent_index
+        self.opponent_index = opponent_index
+
+    def evaluation_function(self, game_state: GameState, player_index) -> float():
+        score = count_consecutive = open_ends = 0
+        for r in range(len(game_state.chess_board)):
+            for c in range(len(game_state.chess_board)):
+                if (game_state.chess_board[r][c] == -player_index):
+                    count_consecutive +=1
+                elif (game_state.chess_board[r][c] == 0 and count_consecutive > 0):
+                    open_ends += 1
+                    score += self.gomoku_shape_score(count_consecutive,	open_ends, player_index == self.agent_index)
+                    count_consecutive = 0
+                    open_ends = 1
+                
+                elif (game_state.chess_board[r][c] == 0):
+                    open_ends = 1
+                elif (count_consecutive > 0):
+                    score += self.gomoku_shape_score(count_consecutive, open_ends, player_index == self.agent_index)
+                    count_consecutive = 0
+                    open_ends = 0
+                else:
+                    open_ends = 0
+            if (count_consecutive > 0):
+                score += self.gomoku_shape_score(count_consecutive, open_ends, player_index == self.agent_index)
+            count_consecutive = 0
+            open_ends = 0
+        return score
+
+    def gomoku_shape_score(self, consecutive: int, open_ends: int, current_turn: int) -> float:
+        if (open_ends == 0 and consecutive < 5):
+            return 0
+        if consecutive == 4:
+            if open_ends == 1:
+                if current_turn:
+                    return 100000000
+                return 50
+            if open_ends == 2:
+                if current_turn:
+                    return 100000000
+                return 500000
+        if consecutive == 3:
+            if open_ends == 1:
+                if current_turn:
+                    return 7
+                return 5
+            if open_ends == 2:
+                if current_turn:
+                    return 10000
+                return 50
+        if consecutive == 2:
+            if open_ends == 1:
+                return 2
+            if open_ends == 2:
+                return 5
+        if consecutive == 1:
+            if open_ends == 1:
+                return 0.5
+            if open_ends == 2:
+                return 1
+        return 200000000
+
+    def get_action(self, game: GameState) -> str:
+        def minimax(game: GameState, depth: int, player_index: int) -> tuple():
+            if game.is_win() or not game.get_legal_actions():
+                return (game.get_score()[player_index], None)
+
+            if depth <= 0:
+                return (self.evaluation_function(game, player_index), None)
+
+            candidates = []
+            if player_index == self.agent_index: # maximize
+                lowest_value = float('-inf')
+                for action in game.get_legal_actions():
+                    value, _ = minimax(game.generate_successor(player_index, action), depth, self.opponent_index)
+                    lowest_value = max( [lowest_value, value] )
+                    candidates.append((lowest_value, action))
+                return max(candidates,key=lambda item:item[0])
+
+            else : # opponent - minimize
+                lowest_value = float('+inf')
+                for action in game.get_legal_actions():
+                    value, _ = minimax(game.generate_successor(player_index, action), depth - 1, self.agent_index)
+                    lowest_value = min( [lowest_value, value] )
+                    candidates.append((lowest_value, action))
+                return min(candidates,key=lambda item:item[0])
+            # END minimax
+        # getAction
+        val, action = minimax(game, self.depth, game.player_index) # human first (opponent)
+        # print("Val: ", val, " :: ", action)
+        return action
+
 def test_is_win(game):
     tests = [
         [(0, 0)],
@@ -247,9 +400,21 @@ def random_adjacent_agent(game):
         adjacent_legal_actions = game.get_adjacent_legal_actions()
         action = random.choice(adjacent_legal_actions)
         game.step(action)
+
+def minimax_agent(game):
+    game.draw_board()
+    agent = MiniMaxAgent()
+    while game.winner is None:
+        action = game.human_step()
+        game.step(action)
+        action = agent.get_action(GameState(game.chess_board, game.next_player))
+        game.step(action)
         
 if __name__ == "__main__":
-    game = Gomoku()
+    g = Gomoku()
     # random_agent(game)
-    random_adjacent_agent(game)
+    # random_adjacent_agent(game)
+    minimax_agent(g)
     # two_player(game)
+
+

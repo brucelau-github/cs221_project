@@ -37,6 +37,7 @@ class Gomoku(gym.Env):
         """ reset the chess status """
         self.stone = {-1:[], 1:[]}
         self.score = {-1:0, 1:0}
+        n = self.board_size
         self.chess_board = [[0]*n for _ in range(n)]
 
     def step(self, action):
@@ -53,8 +54,7 @@ class Gomoku(gym.Env):
 
         self.chess_board[m][n] = player
         self.stone[player].append(action)
-        if self.gui:
-            self.draw_stone(m, n, player)
+        self.draw_stone(m, n, player)
         won = self.is_win(self.stone[player])
         if won: 
             reward = 5000
@@ -95,9 +95,11 @@ class Gomoku(gym.Env):
 
     def draw_board(self):
         pygame.init()
-        self.gui = True
         n, gap = self.board_size, self.board_line_gap
-        self.screen = pygame.display.set_mode(((n+1)*gap, (n+1)*gap))
+        flags = 0
+        if not self.gui:
+            flags = pygame.HIDDEN
+        self.screen = pygame.display.set_mode(((n+1)*gap, (n+1)*gap), flags=flags)
         self.screen.fill(COLOR_BOARD)
         h_label, v_label = ord('A'), 1
         h_line = pygame.Rect((gap, gap), ((n-1)*gap, 2)).move(0, -1)
@@ -230,5 +232,5 @@ def two_random_agent(game):
         sleep(2)
 
 if __name__ == "__main__":
-    game = Gomoku()
-    two_random_agent(game)
+    game = Gomoku(gui=True)
+    random_agent(game)

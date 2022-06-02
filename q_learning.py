@@ -75,7 +75,7 @@ class GomokuMDP(Gomoku):
         if won:
             succ = None
             self.winner = player
-            reward = 5000
+            reward = 1
             return [(succ, prob, reward)]
 
         if self.is_end(state):
@@ -83,7 +83,7 @@ class GomokuMDP(Gomoku):
         actions = self.actions(state)
         if not actions:
             succ = None
-            reward = 0
+            reward = -1
             return [(succ, prob, reward)]
 
         player = -player
@@ -182,7 +182,7 @@ def manhattanDistance( xy1, xy2 ):
   return abs( xy1[0] - xy2[0] ) + abs( xy1[1] - xy2[1] )
 
 
-gomoku_game = GomokuMDP(8)
+gomoku_game = GomokuMDP(5)
 
 def simpleFeatureExtractor(state, action) -> List[Tuple[Tuple, int]]:
     manhattanDist = 0
@@ -200,8 +200,28 @@ def simpleFeatureExtractor(state, action) -> List[Tuple[Tuple, int]]:
         manhattanDist = sum(stone)/len(stone)
     return [(('manhattanDist', manhattanDist, action), -manhattanDist)]
 
+def boardFeatureExtractor(state, action) -> List[Tuple[Tuple, int]]:
+    manhattanDist = 0
+    if not action or not state: return [(('manhattanDist', manhattanDist, action), 0)]
+    N = len(state)
+    white_stone = [(m, n) for m in range(N) for n in range(N) if state[m][n] == 1 ]
+    black_stone = [(m, n) for m in range(N) for n in range(N) if state[m][n] == -1 ]
+    player = 1
+    if len(white_stone) > len(black_stone):
+        player = -1
+    x, y = action
+    dist = tuple([manhattanDistance((m, n), (x, y)) for m in range(N) for n in range(N) if state[m][n] == player ])
+
+    white = tuple([1 if state[m][n] == 1 else 0 for m in range(N) for n in range(N)])
+    black = tuple([1 if state[m][n] == -1 else 0 for m in range(N) for n in range(N) ])
+    board = tuple([state[m][n] for m in range(N) for n in range(N) ])
+    phi = [(("white", white, action), 1), (("black", black, action), 1)]
+    phi.append((("board", board, action), 1))
+    phi.append((("dist", dist, action), 1))
+    return phi
+
 def interactive(rl):
-    game = Gomoku(n=8, gui=True)
+    game = Gomoku(n=5, gui=True)
     game.draw_board()
     while game.winner is None:
         action = game.human_step()
@@ -211,6 +231,7 @@ def interactive(rl):
         action = rl.getAction(game.chess_board)
         game.step(action)
 
-q_rl = QLearningAlgorithm(gomoku_game.actions, gomoku_game.discount(), simpleFeatureExtractor)
-q_rewards = simulate(gomoku_game, q_rl, numTrials=200)
+# q_rl = QLearningAlgorithm(gomoku_game.actions, gomoku_game.discount(), simpleFeatureExtractor)
+q_rl = QLearningAlgorithm(gomoku_game.actions, gomoku_game.discount(), boardFeatureExtractor)
+q_rewards = simulate(gomoku_game, q_rl, numTrials=20000, verbose=True)
 interactive(q_rl)

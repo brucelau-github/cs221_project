@@ -37,6 +37,7 @@ class Gomoku(gym.Env):
         """ reset the chess status """
         self.stone = {-1:[], 1:[]}
         self.score = {-1:0, 1:0}
+        n = self.board_size
         self.chess_board = [[0]*n for _ in range(n)]
 
     def step(self, action):
@@ -53,8 +54,7 @@ class Gomoku(gym.Env):
 
         self.chess_board[m][n] = player
         self.stone[player].append(action)
-        if self.gui:
-            self.draw_stone(m, n, player)
+        self.draw_stone(m, n, player)
         won = self.is_win(self.stone[player])
         if won: 
             reward = 5000
@@ -91,13 +91,15 @@ class Gomoku(gym.Env):
 
     def render(self):
         """ render a chess board """
-        return pygame.surfarray.array3d(self.screen)
+        return pygame.surfarray.array3d(self.screen).transpose(1, 0, 2)
 
     def draw_board(self):
         pygame.init()
-        self.gui = True
         n, gap = self.board_size, self.board_line_gap
-        self.screen = pygame.display.set_mode(((n+1)*gap, (n+1)*gap))
+        flags = 0
+        if not self.gui:
+            flags = pygame.HIDDEN
+        self.screen = pygame.display.set_mode(((n+1)*gap, (n+1)*gap), flags=flags)
         self.screen.fill(COLOR_BOARD)
         h_label, v_label = ord('A'), 1
         h_line = pygame.Rect((gap, gap), ((n-1)*gap, 2)).move(0, -1)
@@ -173,7 +175,7 @@ class Gomoku(gym.Env):
                     break
                 if key[pygame.K_x]:
                     plt.figure()
-                    plt.imshow(pygame.surfarray.array3d(self.screen))
+                    plt.imshow(self.render())
                     plt.show()
 
     def text_draw(self, text, x_pos, y_pos, font_color, font_size):
@@ -234,6 +236,8 @@ def random_agent(game):
     game.draw_board()
     while game.winner is None:
         action = game.human_step()
+        if action is None:
+            break
         game.step(action)
         actions = game.get_legal_actions()
         action = random.choice(actions)
@@ -247,7 +251,19 @@ def random_adjacent_agent(game):
         adjacent_legal_actions = game.get_adjacent_legal_actions()
         action = random.choice(adjacent_legal_actions)
         game.step(action)
-        
+
+def two_random_agent(game):
+    game.draw_board()
+    while game.winner is None:
+        actions = game.get_legal_actions()
+        action = random.choice(actions)
+        game.step(action)
+        sleep(2)
+        actions = game.get_legal_actions()
+        action = random.choice(actions)
+        game.step(action)
+        sleep(2)
+
 if __name__ == "__main__":
     game = Gomoku()
     # random_agent(game)

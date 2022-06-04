@@ -19,6 +19,9 @@ class QLearningAlgorithm():
         score = 0
         for f, v in self.featureExtractor(state, action):
             score += self.weights[f] * v
+        if score:
+            print(self.weights)
+            print(score, action)
         return score
 
     # This algorithm will produce an action given a state.
@@ -70,21 +73,21 @@ class GomokuMDP(Gomoku):
         player = self.next_player
         state[m][n] = player
 
-        succ, prob, reward = state, 1, 0
+        succ, prob, reward = state, 1, -1
         won = self.is_win(state, player)
         if won:
             succ = None
             self.winner = player
-            reward = 1
-            return [(succ, prob, reward)]
+            reward = 5000
+            return [(None, prob, reward)]
 
         if self.is_end(state):
             return []
         actions = self.actions(state)
         if not actions:
             succ = None
-            reward = -1
-            return [(succ, prob, reward)]
+            reward = 0
+            return [(None, prob, reward)]
 
         player = -player
         action = random.choice(actions)
@@ -94,11 +97,11 @@ class GomokuMDP(Gomoku):
         if won:
             succ = None
             self.winner = player
-            reward = 0
-            return [(succ, prob, reward)]
+            reward = -5000
+            return [(None, prob, reward)]
         if self.is_end(state):
             return []
-        return [(succ, prob, reward)]
+        return [(state, prob, reward)]
 
     def discount(self):
         return 0.9
@@ -182,7 +185,7 @@ def manhattanDistance( xy1, xy2 ):
   return abs( xy1[0] - xy2[0] ) + abs( xy1[1] - xy2[1] )
 
 
-gomoku_game = GomokuMDP(5)
+gomoku_game = GomokuMDP(8)
 
 def simpleFeatureExtractor(state, action) -> List[Tuple[Tuple, int]]:
     manhattanDist = 0
@@ -220,8 +223,46 @@ def boardFeatureExtractor(state, action) -> List[Tuple[Tuple, int]]:
     phi.append((("dist", dist, action), 1))
     return phi
 
+def eval_stone(stone):
+    stone_sort = sorted(stone)
+    score = 0
+    for x, y in stone_sort:
+        row, col, diag, adiag = [], [], [], []
+        for i in range(1, 5):
+            row.append((x, y+i))
+            col.append((x+i, y))
+            diag.append((x+i, y+i))
+            adiag.append((x+i, y-i))
+        stone_set = set(stone_sort)
+        win = (stone_set.issuperset(set(row))
+                or stone_set.issuperset(set(col))
+                or stone_set.issuperset(set(diag))
+                or stone_set.issuperset(set(adiag)))
+        if win: return 5000
+        score += len(stone_set.intersection(set(row)))
+        score += len(stone_set.intersection(set(col)))
+        score += len(stone_set.intersection(set(diag)))
+        score += len(stone_set.intersection(set(adiag)))
+    return score
+
+
+def ruleFeatureExtractor(state, action) -> List[Tuple[Tuple, int]]:
+    player = 1
+    if not action or not state: return [('none', 0)]
+    N = len(state)
+    white_stone = [(m, n) for m in range(N) for n in range(N) if state[m][n] == 1 ]
+    black_stone = [(m, n) for m in range(N) for n in range(N) if state[m][n] == -1 ]
+    player = 1
+    if len(white_stone) > len(black_stone):
+        player = -1
+    if player == 1:
+        white_stone.append(action)
+    else:
+        black_stone.append(action)
+    return [('white', eval_stone(white_stone)),('black', eval_stone(black_stone))]
+
 def interactive(rl):
-    game = Gomoku(n=5, gui=True)
+    game = Gomoku(n=8, gui=True)
     game.draw_board()
     while game.winner is None:
         action = game.human_step()
@@ -229,9 +270,11 @@ def interactive(rl):
             break
         game.step(action)
         action = rl.getAction(game.chess_board)
+        if action is None:
+            break
         game.step(action)
 
 # q_rl = QLearningAlgorithm(gomoku_game.actions, gomoku_game.discount(), simpleFeatureExtractor)
-q_rl = QLearningAlgorithm(gomoku_game.actions, gomoku_game.discount(), boardFeatureExtractor)
-q_rewards = simulate(gomoku_game, q_rl, numTrials=20000, verbose=True)
+q_rl = QLearningAlgorithm(gomoku_game.actions, gomoku_game.discount(), ruleFeatureExtractor, explorationProb=0.01)
+q_rewards = simulate(gomoku_game, q_rl, numTrials=10)
 interactive(q_rl)
